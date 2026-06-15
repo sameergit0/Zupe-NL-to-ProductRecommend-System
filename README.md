@@ -82,3 +82,30 @@ Ensure you have the following installed on your system:
 *   **React & TypeScript**: Interactive component-based UI.
 *   **Vite**: Fast dev server and build tool.
 *   **Vanilla CSS**: Glassmorphic elements, modern gradients, and micro-animations.
+
+---
+
+## 🌐 Production Deployment Guide
+
+This section outlines the configurations required to transition the chatbot widget and FastAPI backend from a local environment to production servers.
+
+### 1. FastAPI Backend Configuration
+*   **File**: [backend/.env](./backend/.env)
+    *   **Database Connection**: Update `STM_DB_URI` to point to your production PostgreSQL instance (e.g., `postgresql://user:password@prod-db-host:5432/zupe_db`).
+    *   **CORS Configuration**: Change `CORS_ALLOWED_ORIGINS` to contain your production storefront URL and deployed widget URL instead of local hosts (e.g., `CORS_ALLOWED_ORIGINS=https://yourstore.com,https://widget.yourdomain.com`).
+
+### 2. Standalone Chatbot Widget Code
+*   **File**: [chatService.ts](./frontend/src/services/chatService.ts)
+    *   **API Base URL**: Update `API_BASE_URL` to point to your deployed FastAPI backend URL, or define `VITE_API_URL` in your hosting service's environment variables (e.g., `https://api.yourdomain.com`).
+
+### 3. Chatbot Widget Loader Script (Storefront Embedding)
+*   **File**: [widget.js](./frontend/public/widget.js)
+    *   **Widget Origin**: Update `widgetOrigin` variable (around line 4) to match the URL where the frontend widget is deployed (e.g., `https://widget.yourdomain.com`).
+    *   **Origin Security**: (Optional) For production environments, consider removing local testing exclusions in the message event listener (around line 110) to only accept events from your production widget origin.
+
+### 4. Embedding Code on Client Storefront HTML
+*   To load the widget on your live store frontends, inject the widget loader script before the closing `</body>` tag (e.g. in your Shopify theme's `theme.liquid` layout):
+    ```html
+    <script src="https://widget.yourdomain.com/widget.js" defer></script>
+    ```
+
