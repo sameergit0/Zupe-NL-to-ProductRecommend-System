@@ -1,0 +1,4 @@
+# Run the vector store sync daily at 6:50 PM IST (18:50 Asia/Kolkata timezone)
+50 18 * * * cd /app && /bin/uv run python app/utils/vector_store_sync.py >> /var/log/cron.log 2>&1
+
+# An empty line is required at the end of a crontab file

@@ -1,0 +1,51 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: zupe-postgres
+    environment:
+      POSTGRES_USER: zupe_store
+      POSTGRES_PASSWORD: zupe123
+      POSTGRES_DB: zupe_db
+    ports:
+      - "5442:5432" # Un-comment in development if you need direct external access to database
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+
+  backend:
+    build: .
+    image: zupe-app
+    container_name: zupe-backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - STM_DB_URI=postgresql://zupe_store:zupe123@postgres:5432/zupe_db
+    depends_on:
+      - postgres
+    restart: always
+
+  cron:
+    image: zupe-app
+    container_name: zupe-cron
+    env_file:
+      - .env
+    environment:
+      - STM_DB_URI=postgresql://zupe_store:zupe123@postgres:5432/zupe_db
+    depends_on:
+      - backend
+      - postgres
+    command: >
+      bash -c "
+      crontab /app/crontab-docker &&
+      printenv | grep -v 'no_proxy' >> /etc/environment &&
+      touch /var/log/cron.log &&
+      cron &&
+      echo 'Cron service started successfully!' &&
+      tail -f /var/log/cron.log
+      "
+    restart: always
+
+volumes:
+  postgres_data:

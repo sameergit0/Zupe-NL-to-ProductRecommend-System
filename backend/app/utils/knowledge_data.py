@@ -1,0 +1,14 @@
+KNOWLEDGE_ARTICLES = [
+  {
+    "id": "article-longevity-1",
+    "title": "Factors That Affect Your Longevity",
+    "url": "https://usezupe.com/knowledge/factors-that-affect-your-longevity-5214-30",
+    "content": "Living a long, healthy life (extending your healthspan) depends on multiple interrelated biological and lifestyle factors. Core pillars of longevity include nutritional support, cognitive function, physical activity, sleep quality, stress management, and controlling cellular inflammation. Clinical studies show that high-quality supplementation can help optimize these factors. For example, anti-inflammatories and antioxidants like NAC (N-Acetyl Cysteine), Ginger, Curcumin, and Omega-3 fatty acids support cardiovascular health and joint integrity. Managing cellular health and protecting mitochondria from oxidative damage can delay biological aging. In addition, physical exercise, caloric restriction, and maintaining muscle mass through longevity protein blends are key longevity behaviors that preserve metabolic health and prevent muscle wasting (sarcopenia) as we age."
+  },
+  {
+    "id": "article-about-zupe",
+    "title": "About Zupe: Wellness and Longevity Store",
+    "url": "https://usezupe.com/aboutzupe",
+    "content": "Zupe is a premium wellness and longevity e-commerce platform that curates expert-vetted products for healthy living. Built on a comprehensive review of clinical research, Zupe offers clean, high-potency formulations targeting cellular health, metabolic stability, strength, brain performance, and recovery. Zupe Sage is your digital health advisor, guiding you to discover clinically validated products like Blueprint supplements, advanced longevity mixes, creatine, ashwagandha, and recovery tools. All products are selected based on strict science-backed guidelines to support healthspan, stress resilience, cognitive energy, and healthy aging."
+  }
+]

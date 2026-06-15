@@ -1,0 +1,27 @@
+# Ignore local virtual environment and python cache
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore git and logs
+.git/
+.gitignore
+*.log
+
+# Ignore local environment files
+.env
+.env.local
+.env.development
+.env.production
+.env.staging
+
+# Ignore Docker files
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Ignore local data and cron config
+crontab.txt
+data/

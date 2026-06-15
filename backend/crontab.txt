@@ -1,0 +1,11 @@
+# ==========================================
+# 1. WINDOWS DEVELOPMENT (WSL / Git Bash)
+# Runs in Local Time (IST) - Scheduled daily at 5:47 PM IST
+# ==========================================
+47 17 * * * cd /c/Users/ocmodels03dev/Desktop/zupe/backend && uv run python app/utils/vector_store_sync.py >> Windows_cron.log 2>&1
+
+# ==========================================
+# 2. DOCKER PRODUCTION
+# Runs in UTC Timezone - Scheduled daily at 5:47 PM IST (12:17 UTC)
+# ==========================================
+# 17 12 * * * cd /app && uv run python app/utils/vector_store_sync.py >> /var/log/cron.log 2>&1
