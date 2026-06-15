@@ -1,0 +1,66 @@
+================================================================================
+          ZUPE ECOSYSTEM - PRODUCTION DEPLOYMENT URL CHANGES
+================================================================================
+
+This document details all the file paths, line numbers, and changes required to
+connect the Chatbot Widget (Iframe) and FastAPI Backend when moving from a
+localhost/development environment to production servers.
+
+--------------------------------------------------------------------------------
+1. FASTAPI BACKEND CONFIGURATION
+--------------------------------------------------------------------------------
+
+File: backend/.env
+Link: [backend/.env](file:///c:/Users/ocmodels03dev/Desktop/zupe/backend/.env)
+
+* Line 18:
+  Current: STM_DB_URI=postgresql://zupe_store:zupe123@localhost:5442/zupe_db
+  Change:  Update the hostname/port/credentials to your production Postgres instance.
+           E.g., STM_DB_URI=postgresql://user:password@prod-db-host:5432/zupe_db
+
+* Line 25:
+  Current: CORS_ALLOWED_ORIGINS=http://localhost:5174,http://localhost:5173
+  Change:  Replace the local dev URLs with your actual production store URL and
+           deployed chatbot widget URL.
+           E.g., CORS_ALLOWED_ORIGINS=https://yourstore.com,https://widget.yourdomain.com
+
+--------------------------------------------------------------------------------
+2. STANDALONE CHATBOT WIDGET CODE
+--------------------------------------------------------------------------------
+
+File: frontend/src/services/chatService.ts
+Link: [chatService.ts](file:///c:/Users/ocmodels03dev/Desktop/zupe/frontend/src/services/chatService.ts)
+
+* Line 15:
+  Current: const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+  Change:  Change 'http://localhost:8000' to your deployed FastAPI backend URL,
+           or define VITE_API_URL in your hosting build configuration.
+           E.g., const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://api.yourdomain.com'
+
+--------------------------------------------------------------------------------
+3. CHATBOT WIDGET LOADER SCRIPT (Embedded on Client Storefronts)
+--------------------------------------------------------------------------------
+
+File: frontend/public/widget.js
+Link: [widget.js](file:///c:/Users/ocmodels03dev/Desktop/zupe/frontend/public/widget.js)
+
+* Line 4:
+  Current: var widgetOrigin = "http://localhost:5174"; // Default fallback for local testing
+  Change:  Change "http://localhost:5174" to your deployed chatbot widget URL.
+           E.g., var widgetOrigin = "https://widget.yourdomain.com";
+
+* Line 110:
+  Current: if (event.origin !== widgetOrigin && !event.origin.includes('localhost') && !event.origin.includes('127.0.0.1')) {
+  Change:  (Optional) For maximum security, remove the local testing exclusions in production.
+           E.g., if (event.origin !== widgetOrigin) {
+
+--------------------------------------------------------------------------------
+4. EMBEDDING CODE ON ACTUAL CLIENT STOREFRONT HTML/LIQUID
+--------------------------------------------------------------------------------
+
+* HTML Integration:
+  To load the widget on your live store frontends, inject the loader script at
+  the bottom of the page (e.g. before </body> in Shopify's theme.liquid):
+
+  <script src="https://widget.yourdomain.com/widget.js" defer></script>
+================================================================================
