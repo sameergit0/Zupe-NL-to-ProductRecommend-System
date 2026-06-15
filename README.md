@@ -1,4 +1,4 @@
-# 🍃 Zupe Personal
+# 🍃 Zupe - Natural Language to Product Recommendation System
 
 Welcome to **Zupe**, a full-stack personalized wellness guide and product recommendation assistant integrated with Shopify. This project is structured as a monorepo consisting of a FastAPI backend service and a standalone React chat widget frontend.
 
@@ -8,8 +8,8 @@ Welcome to **Zupe**, a full-stack personalized wellness guide and product recomm
 
 The workspace is organized into two main components:
 
-*   📂 **[backend](file:///c:/Users/ocmodels03dev/Desktop/zupe-personal/backend)**: A high-performance **FastAPI** service powered by a custom **LangGraph** chatbot agent that handles context retrieval (RAG) using Pinecone, conversational history checkpointers in PostgreSQL, and Shopify storefront integrations.
-*   📂 **[frontend](file:///c:/Users/ocmodels03dev/Desktop/zupe-personal/frontend)**: A glassmorphic, standalone **Vite + React + TypeScript** chatbot widget designed to be embedded into any Shopify theme or custom web environment.
+*   📂 **[backend](./backend)**: A high-performance **FastAPI** service powered by a custom **LangGraph** chatbot agent that handles context retrieval (RAG) using Pinecone, conversational history checkpointers in PostgreSQL, and Shopify storefront integrations.
+*   📂 **[frontend](./frontend)**: A glassmorphic, standalone **Vite + React + TypeScript** chatbot widget designed to be embedded into any Shopify theme or custom web environment.
 
 ---
 
