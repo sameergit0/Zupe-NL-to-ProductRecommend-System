@@ -1,6 +1,13 @@
 # ============================================================
-# Python: Virtual Environments & Package Caches
+# Large Media Files (use GitHub Releases or external hosting)
 # ============================================================
+*.mp4
+*.mov
+*.avi
+*.mkv
+
+# ============================================================
+
 .venv/
 venv/
 ENV/
