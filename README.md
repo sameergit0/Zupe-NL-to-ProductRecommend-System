@@ -6,13 +6,7 @@ Welcome to **Zupe**, a full-stack personalized wellness guide and product recomm
 
 ## 🎬 Demo
 
-<!-- 
-  VIDEO EMBED PLACEHOLDER
-  To embed the demo video, upload demo.mp4 to any GitHub Issue comment (drag & drop),
-  copy the generated https://github.com/user-attachments/... URL, and paste it below.
--->
-
-[![Watch the Demo](https://img.shields.io/badge/▶%20Watch%20Demo-Click%20Here-black?style=for-the-badge)](demo.mp4)
+https://github.com/sameergit0/Zupe-NL-to-ProductRecommend-System/raw/main/demo_compressed.mp4
 
 ---
 
