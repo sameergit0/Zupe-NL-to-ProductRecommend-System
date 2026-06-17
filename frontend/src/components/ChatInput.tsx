@@ -3,10 +3,19 @@ import { SendHorizonal } from 'lucide-react';
 
 interface ChatInputProps {
   onSendMessage: (message: string) => void;
+  onStopResponse?: () => void;
+  isLoading?: boolean;
   disabled: boolean;
+  isWelcome?: boolean;
 }
 
-export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, disabled }) => {
+export const ChatInput: React.FC<ChatInputProps> = ({
+  onSendMessage,
+  onStopResponse,
+  isLoading = false,
+  disabled,
+  isWelcome = false,
+}) => {
   const [text, setText] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -15,7 +24,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, disabled })
     const textarea = textareaRef.current;
     if (textarea) {
       textarea.style.height = 'auto';
-      textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+      textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
     }
   }, [text]);
 
@@ -47,27 +56,43 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, disabled })
   };
 
   return (
-    <form className="chat-input-container" onSubmit={handleSubmit}>
+    <form className={`chat-input-container ${isWelcome ? 'welcome-style' : ''}`} onSubmit={handleSubmit}>
       <div className="chat-input-wrapper">
         <textarea
           ref={textareaRef}
           className="chat-textarea"
-          placeholder="Tell me what you're looking for..."
+          placeholder="Tell us about your goals..."
           rows={1}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={disabled}
         />
-        <button
-          type="submit"
-          className="send-btn"
-          disabled={disabled || !text.trim()}
-          aria-label="Send message"
-        >
-          <SendHorizonal size={18} />
-        </button>
+        {isLoading && onStopResponse ? (
+          <button
+            type="button"
+            className="send-btn stop-btn"
+            onClick={onStopResponse}
+            aria-label="Stop generating response"
+          >
+            <span className="stop-icon-inner" />
+          </button>
+        ) : (
+          <button
+            type="submit"
+            className="send-btn"
+            disabled={disabled || !text.trim()}
+            aria-label="Send message"
+          >
+            <SendHorizonal size={18} />
+          </button>
+        )}
       </div>
+      {!isWelcome && (
+        <p className="chat-disclaimer">
+          Zupe Sage is AI-generated and may contain mistakes.
+        </p>
+      )}
     </form>
   );
 };

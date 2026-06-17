@@ -29,3 +29,5 @@ export const SuggestedPrompts: React.FC<SuggestedPromptsProps> = ({ onPromptClic
   );
 };
 
+
+

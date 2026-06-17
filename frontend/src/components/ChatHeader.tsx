@@ -16,7 +16,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ onClose }) => {
   return (
     <div className="chat-header-top">
       <div className="chat-header-top-left">
-        <span className="pulse-dot green" />
+        <span className="status-dot" />
         <span className="advisor-title">Zupe Sage</span>
       </div>
       <button className="close-widget-btn" onClick={handleClose} aria-label="Close Assistant">

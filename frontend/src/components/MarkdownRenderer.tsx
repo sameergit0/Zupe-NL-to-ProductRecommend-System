@@ -142,13 +142,13 @@ export function renderMarkdownBlock(text: string, keyPrefix: string): React.Reac
  * Uses a heuristics match for product fields like Brand, Price, About, Category, or Images.
  */
 function isProductBlock(blockText: string): boolean {
-  if (!blockText.startsWith('###')) return false;
+  const trimmed = blockText.trim();
 
-  const hasBrand = /\*\*Brand\*\*:/i.test(blockText);
-  const hasPrice = /\*\*Price\*\*:/i.test(blockText);
-  const hasAbout = /\*\*(?:About|Why this suits you)\*\*:/i.test(blockText);
-  const hasCategory = /\*\*Category\*\*:/i.test(blockText);
-  const hasImage = /!\[.*?\]\((.*?)\)/.test(blockText);
+  const hasBrand = /\*\*Brand\*\*?\s*:?/i.test(trimmed);
+  const hasPrice = /\*\*Price\*\*?\s*:?/i.test(trimmed);
+  const hasAbout = /\*\*(?:About|Why this suits you)\*\*?\s*:?/i.test(trimmed);
+  const hasCategory = /\*\*Category\*\*?\s*:?/i.test(trimmed);
+  const hasImage = /!\[.*?\]\((.*?)\)/.test(trimmed);
 
   let matches = 0;
   if (hasBrand) matches++;
@@ -164,9 +164,9 @@ function isProductBlock(blockText: string): boolean {
  * Parses a single product block string into a structured Product object.
  */
 function parseProductBlock(blockText: string): Product | null {
-  if (!blockText.startsWith('###')) return null;
+  const trimmed = blockText.trim();
 
-  const lines = blockText.split('\n');
+  const lines = trimmed.split('\n');
   const titleLine = lines[0];
   
   let name = '';
@@ -211,25 +211,25 @@ function parseProductBlock(blockText: string): Product | null {
     const line = lines[i].trim();
     if (!line) continue;
 
-    const brandMatch = line.match(/\*\*Brand\*\*:\s*(.*)/i);
+    const brandMatch = line.match(/\*\*Brand\*\*?\s*:?\s*(.*)/i);
     if (brandMatch) {
       brand = brandMatch[1].trim();
       continue;
     }
 
-    const categoryMatch = line.match(/\*\*Category\*\*:\s*(.*)/i);
+    const categoryMatch = line.match(/\*\*Category\*\*?\s*:?\s*(.*)/i);
     if (categoryMatch) {
       category = categoryMatch[1].trim();
       continue;
     }
 
-    const priceMatch = line.match(/\*\*Price\*\*:\s*(.*)/i);
+    const priceMatch = line.match(/\*\*Price\*\*?\s*:?\s*(.*)/i);
     if (priceMatch) {
       price = priceMatch[1].trim();
       continue;
     }
 
-    const aboutMatch = line.match(/\*\*(?:About|Why this suits you)\*\*:\s*(.*)/i);
+    const aboutMatch = line.match(/\*\*(?:About|Why this suits you)\*\*?\s*:?\s*(.*)/i);
     if (aboutMatch) {
       about = aboutMatch[1].trim();
       continue;
@@ -242,9 +242,12 @@ function parseProductBlock(blockText: string): Product | null {
     }
 
     if (
-      line.match(/\*\*Available Options\/Variants\*\*:/i) ||
-      line.match(/\*\*Available Options\*\*:/i) ||
-      line.match(/\*\*Variants\*\*:/i)
+      line.match(/\*\*Available Options\/Variants\*\*?\s*:/i) ||
+      line.match(/\*\*Available Options\*\*?\s*:/i) ||
+      line.match(/\*\*Variants\*\*?\s*:/i) ||
+      line.match(/Available Options\/Variants\s*:/i) ||
+      line.match(/Available Options\s*:/i) ||
+      line.match(/Variants\s*:/i)
     ) {
       inVariantsList = true;
       continue;
@@ -317,9 +320,9 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ text }) => {
   if (!text) return null;
   console.log("[MarkdownRenderer] Raw text received:", text);
 
-  // Split response by headings matching "### "
-  // Using lookahead split keeps the separator "### " in each resulting segment
-  const segments = text.split(/(?=###\s+)/g);
+  // Split response by headings matching "### " or lines followed by "**Brand**:"
+  // Using lookahead split keeps the separator/title in each resulting segment
+  const segments = text.split(/(?=###\s+)|(?=^[^\n]+\r?\n\*\*Brand\*\*)/gmi);
 
   // If we have product blocks, check if the last segment contains trailing non-product text (like a followup question)
   if (segments.length > 1) {
@@ -333,16 +336,17 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ text }) => {
         const line = lines[j].trim();
         if (
           line.startsWith('###') ||
-          line.includes('**Brand**:') ||
-          line.includes('**Category**:') ||
-          line.includes('**Price**:') ||
-          line.includes('**Why this suits you**:') ||
+          /Brand/i.test(line) ||
+          /Category/i.test(line) ||
+          /Price/i.test(line) ||
+          /Why this suits you/i.test(line) ||
+          /About/i.test(line) ||
           line.includes('![') ||
-          line.includes('[View Product →]') ||
-          line.includes('**Available Options/Variants**:') ||
-          line.includes('**Available Options**:') ||
-          line.includes('**Variants**:') ||
-          ((line.startsWith('-') || line.startsWith('*')) && (line.includes('?variant=') || line.includes('variant') || line.includes('Price') || line.includes('Default Title') || line.includes('Checkout URL')))
+          /View Product/i.test(line) ||
+          /Available Options/i.test(line) ||
+          /Variants/i.test(line) ||
+          line.startsWith('-') ||
+          line.startsWith('*')
         ) {
           lastProductLineIndex = j;
         }
@@ -401,6 +405,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ text }) => {
     }
   }
 
+  // Final flush to catch any remaining product recommendations
   flushProductGroup();
 
   return <div className="markdown-renderer">{renderedElements}</div>;

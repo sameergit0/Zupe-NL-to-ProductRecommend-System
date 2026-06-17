@@ -6,12 +6,24 @@ import type { ChatMessage } from './MessageBubble';
 import { SuggestedPrompts } from './SuggestedPrompts';
 import { TypingIndicator } from './TypingIndicator';
 import { streamChat } from '../services/chatService';
+import { CHATBOT_MODE } from '../config';
+import { ArrowDown } from 'lucide-react';
 
 export const ChatWidget: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [animTheme, setAnimTheme] = useState<'chat' | 'search'>('chat');
+  const [isMobileView, setIsMobileView] = useState(window.innerWidth <= 520);
 
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobileView(window.innerWidth <= 520);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const effectiveMode = (CHATBOT_MODE === 'full' || isMobileView) ? 'full' : 'half';
 
   // Start with a new session state on every page load
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -19,6 +31,31 @@ export const ChatWidget: React.FC = () => {
   const lastUserMessageRef = useRef<string | null>(null);
   const chatAreaRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const tokensReceivedRef = useRef<number>(0);
+  const [showScrollButton, setShowScrollButton] = useState(false);
+
+  const handleScroll = () => {
+    if (chatAreaRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = chatAreaRef.current;
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < 150;
+      setShowScrollButton(!isNearBottom);
+    }
+  };
+
+  const scrollToBottom = () => {
+    if (chatAreaRef.current) {
+      chatAreaRef.current.scrollTo({
+        top: chatAreaRef.current.scrollHeight,
+        behavior: 'smooth',
+      });
+    }
+  };
+
+  // Sync the configured chatbot mode with the host page
+  useEffect(() => {
+    console.log(`[ChatWidget] Syncing chatbot mode: ${CHATBOT_MODE}`);
+    window.parent.postMessage({ type: 'set-chatbot-mode', mode: CHATBOT_MODE }, '*');
+  }, [CHATBOT_MODE]);
 
   // Reset state on component mount (page load/refresh) to ensure a fresh session
   useEffect(() => {
@@ -27,12 +64,40 @@ export const ChatWidget: React.FC = () => {
     setSessionId(null);
   }, []);
 
-  // Auto-scroll chat area to bottom when messages or status changes
+  // Auto-scroll chat area:
+  // - If the current conversation turn (user message + AI response) fits completely within the viewport,
+  //   we scroll to the bottom of the message content (keeping previous messages visible above).
+  // - If the response is too long and overflows, we scroll the user message to the top of the viewport.
   useEffect(() => {
-    if (chatAreaRef.current) {
-      chatAreaRef.current.scrollTop = chatAreaRef.current.scrollHeight;
+    if (messages.length > 0) {
+      const lastUserMessage = [...messages].reverse().find(m => m.sender === 'user');
+      if (lastUserMessage) {
+        const scrollFunc = () => {
+          const el = document.getElementById(`msg-${lastUserMessage.id}`);
+          if (el && chatAreaRef.current) {
+            const containerTop = chatAreaRef.current.getBoundingClientRect().top;
+            const elementTop = el.getBoundingClientRect().top;
+            const elementScrollPosition = elementTop - containerTop + chatAreaRef.current.scrollTop;
+
+            const clientHeight = chatAreaRef.current.clientHeight;
+            const contentHeight = chatAreaRef.current.scrollHeight;
+            const turnHeight = contentHeight - elementScrollPosition;
+
+            if (turnHeight <= clientHeight) {
+              // The current turn fits completely. Scroll to the bottom of the actual content.
+              chatAreaRef.current.scrollTop = Math.max(0, contentHeight - clientHeight);
+            } else {
+              // The response is too long. Scroll the user's message to the top.
+              chatAreaRef.current.scrollTop = elementScrollPosition - 12;
+            }
+          }
+        };
+        scrollFunc();
+        const timer = setTimeout(scrollFunc, 50);
+        return () => clearTimeout(timer);
+      }
     }
-  }, [messages, loading]);
+  }, [messages]);
 
   // Manage conversation history in state
   const saveChatHistory = (newMessages: ChatMessage[]) => {
@@ -42,7 +107,7 @@ export const ChatWidget: React.FC = () => {
   const handleSendMessage = async (text: string) => {
     if (!text.trim()) return;
 
-
+    tokensReceivedRef.current = 0;
     setLoading(true);
     setAnimTheme('chat');
     lastUserMessageRef.current = text;
@@ -94,6 +159,7 @@ export const ChatWidget: React.FC = () => {
           }
         },
         onToken: (token) => {
+          tokensReceivedRef.current += 1;
           botResponseText += token;
           // Dynamically append or update the last bot message
           const currentBotMsg: ChatMessage = {
@@ -137,7 +203,7 @@ export const ChatWidget: React.FC = () => {
           setLoading(false);
           setAnimTheme('chat');
           console.error('[ChatWidget] streamChat error:', errMessage);
-          
+
           const errorBotMsg: ChatMessage = {
             id: `bot-error-${Date.now()}`,
             sender: 'assistant',
@@ -151,7 +217,26 @@ export const ChatWidget: React.FC = () => {
     );
   };
 
+  const handleStopResponse = () => {
+    console.log("[ChatWidget] Stop response requested by user.");
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
 
+    if (tokensReceivedRef.current === 0) {
+      const stoppedMsg: ChatMessage = {
+        id: `bot-stopped-${Date.now()}`,
+        sender: 'assistant',
+        text: 'Response stopped by user',
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, stoppedMsg]);
+    }
+
+    setLoading(false);
+    setAnimTheme('chat');
+  };
 
   const handleClearHistory = () => {
     console.log("[ChatWidget] handleClearHistory called. Clearing messages and sessionId.");
@@ -194,6 +279,12 @@ export const ChatWidget: React.FC = () => {
   }, [messages, sessionId]);
 
   const handleWidgetClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    // If user is actively selecting text, do not move focus to the input (which clears selection)
+    const selection = window.getSelection()?.toString();
+    if (selection && selection.trim().length > 0) {
+      return;
+    }
+
     const target = e.target as HTMLElement;
     const isInteractive = target.closest('button, a, input, textarea, [role="button"]');
     if (!isInteractive) {
@@ -205,35 +296,77 @@ export const ChatWidget: React.FC = () => {
   };
 
   return (
-    <div className="chat-container" onClick={handleWidgetClick}>
-      {/* 1. Header */}
-      <ChatHeader onClearHistory={handleClearHistory} onClose={() => {}} />
+    <>
+      {effectiveMode === 'full' && (
+        <div className="chat-backdrop-overlay" />
+      )}
+      <div className={`chat-container ${effectiveMode === 'full' ? 'mode-full' : 'mode-half'}`} onClick={handleWidgetClick}>
+        {/* 1. Header */}
+        <ChatHeader onClearHistory={handleClearHistory} onClose={() => { }} />
 
-      {/* 2. Chat Area */}
-      <div className="chat-area" ref={chatAreaRef}>
-        {messages.length === 0 ? (
-          /* 3. Welcome Screen */
-          <div className="welcome-screen">
-            <h2 className="welcome-title">✨ Meet Zupe Sage</h2>
-            <p className="welcome-subtitle">
-              Wisdom for living well. What are you looking to improve today?
-            </p>
-            <SuggestedPrompts onPromptClick={handleSendMessage} />
+        {/* 2. Chat Area */}
+        <div className="chat-area" ref={chatAreaRef} onScroll={handleScroll}>
+          {messages.length === 0 ? (
+            /* 3. Welcome Screen */
+            <div className="welcome-screen">
+              <h2 className="welcome-title">
+                What would you like to improve today?
+              </h2>
+              <p className="welcome-subtitle">
+                Discover personalised wellness strategies, premium supplements, and expert guidance designed around your unique needs.
+              </p>
+              <SuggestedPrompts onPromptClick={handleSendMessage} />
+
+              {effectiveMode === 'full' && (
+                <div className="welcome-input-wrapper">
+                  <ChatInput
+                    onSendMessage={handleSendMessage}
+                    onStopResponse={handleStopResponse}
+                    isLoading={loading}
+                    disabled={loading}
+                    isWelcome={true}
+                  />
+                  <p className="welcome-disclaimer">
+                    Zupe Sage is AI-generated and may contain mistakes.
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            messages.map((message) => (
+              <MessageBubble key={message.id} message={message} />
+            ))
+          )}
+
+          {/* 9. Loading Experience */}
+          {loading && messages[messages.length - 1]?.sender !== 'assistant' && (
+            <TypingIndicator theme={animTheme} />
+          )}
+        </div>
+
+        {showScrollButton && (
+          <div className="scroll-to-bottom-btn-wrapper">
+            <button
+              type="button"
+              className="scroll-to-bottom-btn"
+              onClick={scrollToBottom}
+              aria-label="Scroll to bottom"
+            >
+              <ArrowDown size={18} />
+            </button>
           </div>
-        ) : (
-          messages.map((message) => (
-            <MessageBubble key={message.id} message={message} />
-          ))
         )}
 
-        {/* 9. Loading Experience */}
-        {loading && messages[messages.length - 1]?.sender !== 'assistant' && (
-          <TypingIndicator theme={animTheme} />
+        {/* 4. Message Input - Hide bottom input bar on full-screen welcome view */}
+        {!(effectiveMode === 'full' && messages.length === 0) && (
+          <ChatInput
+            onSendMessage={handleSendMessage}
+            onStopResponse={handleStopResponse}
+            isLoading={loading}
+            disabled={loading}
+          />
         )}
       </div>
-
-      {/* 4. Message Input */}
-      <ChatInput onSendMessage={handleSendMessage} disabled={loading} />
-    </div>
+    </>
   );
 };

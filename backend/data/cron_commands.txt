@@ -1,0 +1,19 @@
+# scheduling it on windows using powershell
+$cron = Get-Content "C:\Users\ocmodels03dev\Desktop\zupe\backend\crontab.txt" | Where-Object { $_ -match '^\s*(\d+)\s+(\d+)\s+.*\s+uv\s+run' }
+if ($cron) {
+    $parts = [regex]::split($cron.Trim(), '\s+')
+    $m, $h = $parts[0], $parts[1]
+    $timeString = "{0}:{1}" -f $h, $m
+    $time = [datetime]::ParseExact($timeString, "H:m", $null).ToString("h:mm tt")
+    
+    $action = New-ScheduledTaskAction -Execute "cmd.exe" -Argument "/c cd /d C:\Users\ocmodels03dev\Desktop\zupe\backend && uv run python app/utils/vector_store_sync.py >> Windows_cron.log 2>&1"
+    $trigger = New-ScheduledTaskTrigger -Daily -At $time
+    
+    Register-ScheduledTask -Action $action -Trigger $trigger -TaskName "ZupeShopifySync" -Force
+    Write-Host "Successfully registered Windows Task 'ZupeShopifySync' at $time"
+} else {
+    Write-Host "No active Windows cron job line found in crontab.txt"
+}
+
+# deleting the task on windows using powershell
+schtasks /delete /tn "ZupeShopifySync" /f

@@ -16,7 +16,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
   const isUser = message.sender === 'user';
 
   return (
-    <div className={`message-row ${isUser ? 'user' : 'assistant'}`}>
+    <div id={`msg-${message.id}`} className={`message-row ${isUser ? 'user' : 'assistant'}`}>
       {!isUser && (
         <div className="message-avatar" title="AI Assistant">
           <Sparkles size={14} />

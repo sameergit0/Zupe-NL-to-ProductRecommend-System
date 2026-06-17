@@ -1,31 +1,58 @@
-# Dependency directories
-node_modules/
+# ============================================================
+# Python: Virtual Environments & Package Caches
+# ============================================================
 .venv/
 venv/
 ENV/
 env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+dist-info/
 
-# Build and distribution directories
-dist/
-dist-ssr/
-build/
-
-# Local/Secret Environment Variables
-.env
-.env*.local
-!.env.example
-
-# Logs
-*.log
-logs/
+# ============================================================
+# Node.js: Dependencies & Package Manager Artifacts
+# ============================================================
+node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+.pnpm-store/
+
+# ============================================================
+# Build & Distribution Outputs
+# ============================================================
+dist/
+dist-ssr/
+build/
+*.tsbuildinfo
+
+# ============================================================
+# Environment & Secrets (NEVER commit these)
+# ============================================================
+.env
+.env.local
+.env.*.local
+*.env
+!.env.example
+!backend/.env.example
+
+# ============================================================
+# Logs
+# ============================================================
+*.log
+logs/
 Windows_cron.log
 
-# Editor and IDE directories
+# ============================================================
+# Editor & IDE Directories
+# ============================================================
 .vscode/
 !.vscode/extensions.json
 .idea/
@@ -34,18 +61,41 @@ Windows_cron.log
 *.njsproj
 *.sln
 *.sw?
+*.swp
 
-# OS files
+# ============================================================
+# OS Files
+# ============================================================
 .DS_Store
+.DS_Store?
 Thumbs.db
+desktop.ini
+ehthumbs.db
 
-# Python caches and compiled files
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.pytest_cache/
-.mypy_cache/
+# ============================================================
+# Docker & Container Artifacts
+# ============================================================
+.dockerignore
 
-# Deployment / Hosting directories
+# ============================================================
+# Deployment / Hosting Artifacts
+# ============================================================
 .vercel/
+.netlify/
+.railway/
+
+# ============================================================
+# Python Data & ML Model Caches
+# ============================================================
+data/products.json
+data/articles.json
+*.pkl
+*.pt
+*.bin
+*.safetensors
+
+# ============================================================
+# Auto-Generated Files
+# ============================================================
+# LangGraph workflow diagram (auto-generated at startup)
+backend/app/graph/workflow.png

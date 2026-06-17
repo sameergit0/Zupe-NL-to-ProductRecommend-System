@@ -3,3 +3,6 @@ export const SHOPIFY_STOREFRONT_ACCESS_TOKEN = import.meta.env.VITE_SHOPIFY_STOR
 export const SHOPIFY_API_VERSION = import.meta.env.VITE_SHOPIFY_API_VERSION || "2026-01";
 
 export const SHOPIFY_ENDPOINT = `${SHOPIFY_BASE_URL.replace(/\/$/, "")}/api/${SHOPIFY_API_VERSION}/graphql.json`;
+
+export const CHATBOT_MODE: "full" | "half" = "half"; // Change to "full" for full-screen desktop web view
+
