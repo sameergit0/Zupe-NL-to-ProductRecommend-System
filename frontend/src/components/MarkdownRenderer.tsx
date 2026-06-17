@@ -138,46 +138,145 @@ export function renderMarkdownBlock(text: string, keyPrefix: string): React.Reac
 }
 
 /**
- * Checks if a block of markdown text starting with `### ` is structured as a product recommendation card.
- * Uses a heuristics match for product fields like Brand, Price, About, Category, or Images.
+ * Checks if a block of markdown text is structured as a product recommendation card.
+ * Uses heuristics matching product fields like Brand, Price, About, Category.
  */
 function isProductBlock(blockText: string): boolean {
   const trimmed = blockText.trim();
-
   const hasBrand = /\*\*Brand\*\*?\s*:?/i.test(trimmed);
   const hasPrice = /\*\*Price\*\*?\s*:?/i.test(trimmed);
   const hasAbout = /\*\*(?:About|Why this suits you)\*\*?\s*:?/i.test(trimmed);
   const hasCategory = /\*\*Category\*\*?\s*:?/i.test(trimmed);
-  const hasImage = /!\[.*?\]\((.*?)\)/.test(trimmed);
 
   let matches = 0;
   if (hasBrand) matches++;
   if (hasPrice) matches++;
   if (hasAbout) matches++;
   if (hasCategory) matches++;
-  if (hasImage) matches++;
 
   return matches >= 2;
+}
+
+// Regexes used by the splitter
+const PRODUCT_FIELD_RE = /^\s*\*\*(?:Brand|Category|Price|About|Why this suits you|Available Options(?:\/Variants)?|Variants)\*\*\s*:?/i;
+const VARIANT_LINE_RE = /^\s*[-*]\s+/;
+const IMG_RE = /^\s*!\[/;
+const H3_RE = /^\s*###\s+/;
+
+/**
+ * Splits a full LLM response into segments — one per product block plus any surrounding prose.
+ * Handles BOTH ### heading style and heading-less product blocks.
+ */
+function splitIntoSegments(text: string): string[] {
+  const lines = text.split('\n');
+  const segments: string[] = [];
+  let currentLines: string[] = [];
+  let inProduct = false;
+
+  /**
+   * Returns true if the line at `idx` is the start of a product block.
+   * A product block starts at a ### heading followed by product fields,
+   * OR at a plain title line immediately followed by a **Brand**: field.
+   */
+  const isProductStartLine = (idx: number): boolean => {
+    const line = lines[idx];
+    if (!line.trim()) return false;
+
+    if (H3_RE.test(line)) {
+      // ### heading — confirm it leads to product fields
+      for (let j = idx + 1; j < Math.min(idx + 7, lines.length); j++) {
+        if (!lines[j].trim()) continue;
+        if (PRODUCT_FIELD_RE.test(lines[j]) || IMG_RE.test(lines[j])) return true;
+        break;
+      }
+    }
+
+    // Non-heading, non-field, non-variant line — check if Brand field follows quickly
+    if (!PRODUCT_FIELD_RE.test(line) && !VARIANT_LINE_RE.test(line) && !IMG_RE.test(line)) {
+      for (let j = idx + 1; j < Math.min(idx + 4, lines.length); j++) {
+        if (!lines[j].trim()) continue;
+        if (PRODUCT_FIELD_RE.test(lines[j]) || IMG_RE.test(lines[j])) return true;
+        break; // first non-blank line must be a product field
+      }
+    }
+
+    return false;
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    if (isProductStartLine(i)) {
+      // Flush any accumulated text before starting a new product block
+      if (currentLines.length > 0) {
+        const pending = currentLines.join('\n');
+        if (pending.trim()) segments.push(pending);
+        currentLines = [];
+      }
+      inProduct = true;
+      currentLines.push(lines[i]);
+    } else if (inProduct) {
+      const trimmed = lines[i].trim();
+      const isProductLine =
+        PRODUCT_FIELD_RE.test(lines[i]) ||
+        VARIANT_LINE_RE.test(lines[i]) ||
+        IMG_RE.test(lines[i]) ||
+        /\[View Product/i.test(lines[i]) ||
+        !trimmed; // blank lines within a product block are fine
+
+      if (isProductLine) {
+        currentLines.push(lines[i]);
+      } else if (isProductStartLine(i)) {
+        // Next product block starts immediately
+        const pending = currentLines.join('\n');
+        if (pending.trim()) segments.push(pending);
+        currentLines = [lines[i]];
+      } else {
+        // Prose after a product block — flush and continue as prose
+        const pending = currentLines.join('\n');
+        if (pending.trim()) segments.push(pending);
+        currentLines = [lines[i]];
+        inProduct = false;
+      }
+    } else {
+      currentLines.push(lines[i]);
+    }
+  }
+
+  // Flush remaining
+  if (currentLines.length > 0) {
+    const pending = currentLines.join('\n');
+    if (pending.trim()) segments.push(pending);
+  }
+
+  return segments;
 }
 
 /**
  * Parses a single product block string into a structured Product object.
  */
 function parseProductBlock(blockText: string): Product | null {
-  const trimmed = blockText.trim();
+  const lines = blockText.trim().split('\n');
 
-  const lines = trimmed.split('\n');
-  const titleLine = lines[0];
-  
+  // Find the title line: first non-empty, non-field, non-variant, non-image line
+  let titleLine = '';
+  let titleLineIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i].trim();
+    if (!l) continue;
+    if (PRODUCT_FIELD_RE.test(l) || VARIANT_LINE_RE.test(l) || IMG_RE.test(l)) continue;
+    titleLine = l;
+    titleLineIdx = i;
+    break;
+  }
+
   let name = '';
   let url: string | undefined;
 
-  // Try standard markdown link anywhere in the line: [Product Name](url)
   const cleanTitle = titleLine.replace(/^###\s+/, '').trim();
+  // Try standard markdown link: [Product Name](url)
   const stdMatch = cleanTitle.match(/\[(.*?)\]\(\s*\{?\s*(https?:\/\/[^\s\)\}]+)\s*\}?\s*\)/);
   // Pattern: Name (URL) — parens-style
   const parenMatch = cleanTitle.match(/(.*?)\s*\(\s*\{?\s*(https?:\/\/[^\s\)\}]+)\s*\}?\s*\)/);
-  // Pattern: Name URL — plain space-separated URL appended (LLM sometimes does this)
+  // Pattern: Name URL — plain space-separated URL appended
   const spaceMatch = cleanTitle.match(/^(.*?)\s+(https?:\/\/\S+)$/);
 
   if (stdMatch) {
@@ -193,9 +292,9 @@ function parseProductBlock(blockText: string): Product | null {
     name = cleanTitle;
   }
 
-  // Strip any bare URL that may have leaked into the name (safety net)
+  // Strip bare URLs that leaked into name
   name = name.replace(/\s*https?:\/\/\S+/g, '').trim();
-  // Clean trailing default-title syntax if any
+  // Clean trailing default-title syntax
   name = name.replace(/\s*\[Default.*$/i, '').trim();
 
   let brand: string | undefined;
@@ -204,42 +303,27 @@ function parseProductBlock(blockText: string): Product | null {
   let about: string | undefined;
   let imageUrl: string | undefined;
   const variants: ProductVariant[] = [];
-
   let inVariantsList = false;
 
-  for (let i = 1; i < lines.length; i++) {
+  for (let i = 0; i < lines.length; i++) {
+    if (i === titleLineIdx) continue; // skip title line
     const line = lines[i].trim();
     if (!line) continue;
 
     const brandMatch = line.match(/\*\*Brand\*\*?\s*:?\s*(.*)/i);
-    if (brandMatch) {
-      brand = brandMatch[1].trim();
-      continue;
-    }
+    if (brandMatch) { brand = brandMatch[1].trim(); inVariantsList = false; continue; }
 
     const categoryMatch = line.match(/\*\*Category\*\*?\s*:?\s*(.*)/i);
-    if (categoryMatch) {
-      category = categoryMatch[1].trim();
-      continue;
-    }
+    if (categoryMatch) { category = categoryMatch[1].trim(); inVariantsList = false; continue; }
 
     const priceMatch = line.match(/\*\*Price\*\*?\s*:?\s*(.*)/i);
-    if (priceMatch) {
-      price = priceMatch[1].trim();
-      continue;
-    }
+    if (priceMatch) { price = priceMatch[1].trim(); inVariantsList = false; continue; }
 
     const aboutMatch = line.match(/\*\*(?:About|Why this suits you)\*\*?\s*:?\s*(.*)/i);
-    if (aboutMatch) {
-      about = aboutMatch[1].trim();
-      continue;
-    }
+    if (aboutMatch) { about = aboutMatch[1].trim(); inVariantsList = false; continue; }
 
     const imgMatch = line.match(/!\[.*?\]\((.*?)\)/);
-    if (imgMatch) {
-      imageUrl = imgMatch[1].trim();
-      continue;
-    }
+    if (imgMatch) { imageUrl = imgMatch[1].trim(); continue; }
 
     if (
       line.match(/\*\*Available Options\/Variants\*\*?\s*:/i) ||
@@ -254,34 +338,26 @@ function parseProductBlock(blockText: string): Product | null {
     }
 
     if (inVariantsList && (line.startsWith('*') || line.startsWith('-'))) {
-      // 1. Try standard markdown link: - [variant_title](url)
       const cleanLine = line.replace(/^[\*\-]\s+/, '').trim();
+
+      // Strip price info like "(Price: HKD 395.0)" or "(Price: INR 500)" from variant label
+      const cleanVariantTitle = (t: string) =>
+        t.replace(/\s*\(Price:\s*[A-Z]{0,3}\s*[\d.,]+\)/gi, '')
+         .replace(/\s*Price:\s*[A-Z]{0,3}\s*[\d.,]+/gi, '')
+         .trim();
+
+      // Try standard markdown link: - [variant_title](url)
       const variantStdMatch = cleanLine.match(/\[(.*?)\]\(\s*\{?\s*(https?:\/\/[^\s\)\}]+)\s*\}?\s*\)/);
-      
-      // 2. Try parenthesis link without brackets: - variant_title (url)
+      // Try parenthesis link without brackets: - variant_title (url)
       const variantParenMatch = cleanLine.match(/(.*?)\s*\(\s*\{?\s*(https?:\/\/[^\s\)\}]+)\s*\}?\s*\)/);
 
       if (variantStdMatch) {
-        const vTitle = variantStdMatch[1].trim();
-        const vUrl = variantStdMatch[2].trim();
-        variants.push({
-          title: vTitle,
-          url: vUrl
-        });
+        variants.push({ title: cleanVariantTitle(variantStdMatch[1]), url: variantStdMatch[2].trim() });
       } else if (variantParenMatch) {
-        const vTitle = variantParenMatch[1].trim();
-        const vUrl = variantParenMatch[2].trim();
-        variants.push({
-          title: vTitle,
-          url: vUrl
-        });
+        variants.push({ title: cleanVariantTitle(variantParenMatch[1]), url: variantParenMatch[2].trim() });
       } else {
-        const variantValue = line.replace(/^[\*\-]\s*/, '').trim();
-        if (variantValue) {
-          variants.push({
-            title: variantValue
-          });
-        }
+        const variantValue = cleanVariantTitle(cleanLine);
+        if (variantValue) variants.push({ title: variantValue });
       }
       continue;
     }
@@ -290,7 +366,7 @@ function parseProductBlock(blockText: string): Product | null {
       inVariantsList = false;
     }
 
-    // Fallback: extract URL from the [View Product →](url) line if url not yet found
+    // Fallback: extract URL from [View Product →](url) if url not yet found
     if (!url) {
       const viewProductMatch = line.match(/\[View Product[^\]]*\]\(\s*(https?:\/\/[^\s\)]+)\s*\)/i);
       if (viewProductMatch) {
@@ -318,51 +394,10 @@ function parseProductBlock(blockText: string): Product | null {
 
 export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ text }) => {
   if (!text) return null;
-  console.log("[MarkdownRenderer] Raw text received:", text);
+  console.log('[MarkdownRenderer] Raw text received:', text);
 
-  // Split response by headings matching "### " or lines followed by "**Brand**:"
-  // Using lookahead split keeps the separator/title in each resulting segment
-  const segments = text.split(/(?=###\s+)|(?=^[^\n]+\r?\n\*\*Brand\*\*)/gmi);
-
-  // If we have product blocks, check if the last segment contains trailing non-product text (like a followup question)
-  if (segments.length > 1) {
-    const lastIdx = segments.length - 1;
-    const lastSegment = segments[lastIdx];
-    
-    if (isProductBlock(lastSegment)) {
-      const lines = lastSegment.split('\n');
-      let lastProductLineIndex = -1;
-      for (let j = 0; j < lines.length; j++) {
-        const line = lines[j].trim();
-        if (
-          line.startsWith('###') ||
-          /Brand/i.test(line) ||
-          /Category/i.test(line) ||
-          /Price/i.test(line) ||
-          /Why this suits you/i.test(line) ||
-          /About/i.test(line) ||
-          line.includes('![') ||
-          /View Product/i.test(line) ||
-          /Available Options/i.test(line) ||
-          /Variants/i.test(line) ||
-          line.startsWith('-') ||
-          line.startsWith('*')
-        ) {
-          lastProductLineIndex = j;
-        }
-      }
-      
-      if (lastProductLineIndex !== -1 && lastProductLineIndex < lines.length - 1) {
-        const productPart = lines.slice(0, lastProductLineIndex + 1).join('\n');
-        const trailingPart = lines.slice(lastProductLineIndex + 1).join('\n');
-        
-        segments[lastIdx] = productPart;
-        if (trailingPart.trim()) {
-          segments.push(trailingPart);
-        }
-      }
-    }
-  }
+  const segments = splitIntoSegments(text);
+  console.log('[MarkdownRenderer] Segments:', segments.length, segments.map(s => s.slice(0, 60)));
 
   const renderedElements: React.ReactNode[] = [];
   let currentProductGroup: Product[] = [];
@@ -375,9 +410,9 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ text }) => {
       renderedElements.push(
         <div key={currentGroupKey} className="products-container">
           {productsToRender.map((prod, idx) => (
-            <ProductRecommendationCard 
-              key={`${currentGroupKey}-${idx}`} 
-              product={prod} 
+            <ProductRecommendationCard
+              key={`${currentGroupKey}-${idx}`}
+              product={prod}
             />
           ))}
         </div>
@@ -392,7 +427,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ text }) => {
 
     if (isProductBlock(segment)) {
       const parsed = parseProductBlock(segment);
-      console.log(`[MarkdownRenderer] Segment ${i} parsed as product:`, parsed);
+      console.log(`[MarkdownRenderer] Segment ${i} parsed as product:`, parsed?.name);
       if (parsed) {
         currentProductGroup.push(parsed);
       } else {
@@ -405,7 +440,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ text }) => {
     }
   }
 
-  // Final flush to catch any remaining product recommendations
+  // Final flush
   flushProductGroup();
 
   return <div className="markdown-renderer">{renderedElements}</div>;
